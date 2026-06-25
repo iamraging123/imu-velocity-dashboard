@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IMU Acceleration Dashboard</title>
+<title>Acceleration Dashboard</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -153,7 +153,7 @@
 <body>
 
 <header>
-  <h1>IMU Acceleration / ICM-42670-P</h1>
+  <h1>Acceleration Dashboard</h1>
   <div class="controls">
     <label for="baud">Baud</label>
     <input type="number" id="baud" value="115200" min="9600" step="9600">
@@ -193,9 +193,6 @@
   <canvas id="chart"></canvas>
 </div>
 
-<footer>
-  Raw accelerometer data, bias-corrected at startup. Z axis has gravity removed. Values in m/s2.
-</footer>
 
 <script>
 /* ================================================================
