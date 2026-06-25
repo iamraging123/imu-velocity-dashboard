@@ -1,0 +1,25 @@
+{
+  "configurations": [
+    {
+      "name": "Arduino STM32",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "C:/Users/lgrue_borstjl/Documents/Arduino/libraries/**",
+        "C:/Users/lgrue_borstjl/AppData/Local/Arduino15/packages/STMicroelectronics/hardware/stm32/2.12.0/cores/arduino",
+        "C:/Users/lgrue_borstjl/AppData/Local/Arduino15/packages/STMicroelectronics/hardware/stm32/2.12.0/variants/**",
+        "C:/Users/lgrue_borstjl/AppData/Local/Arduino15/packages/STMicroelectronics/hardware/stm32/2.12.0/libraries/**",
+        "C:/Users/lgrue_borstjl/AppData/Local/Arduino15/packages/STMicroelectronics/tools/xpack-arm-none-eabi-gcc/14.2.1-1.1/arm-none-eabi/include",
+        "C:/Users/lgrue_borstjl/AppData/Local/Arduino15/packages/STMicroelectronics/tools/xpack-arm-none-eabi-gcc/14.2.1-1.1/lib/gcc/arm-none-eabi/14.2.1/include"
+      ],
+      "defines": [
+        "ARDUINO=10607",
+        "STM32"
+      ],
+      "compilerPath": "C:/Users/lgrue_borstjl/AppData/Local/Arduino15/packages/STMicroelectronics/tools/xpack-arm-none-eabi-gcc/14.2.1-1.1/bin/arm-none-eabi-gcc-14.2.1.exe",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "gcc-arm"
+    }
+  ],
+  "version": 4
+}

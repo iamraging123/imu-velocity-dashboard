@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IMU Acceleration Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #000000;
+    --surface: #0d0d0d;
+    --border:  #252525;
+    --text:    #c4c4c8;
+    --muted:   #555560;
+    --ax:      #cc3333;
+    --ay:      #33aa44;
+    --az:      #3366cc;
+    --am:      #e8e8e8;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  h1 { font-size: 15px; font-weight: 600; letter-spacing: .03em; color: #e0e0e4; }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  label { color: var(--muted); }
+
+  input[type="number"] {
+    width: 90px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 8px;
+    border-radius: 0;
+    font-size: 13px;
+  }
+
+  button {
+    padding: 5px 14px;
+    border-radius: 0;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    transition: background .15s;
+  }
+  button:hover { background: #1a1a1a; }
+  button.connected { border-color: #33aa44; color: #33aa44; }
+  button:disabled { opacity: .35; cursor: default; }
+
+  #btnRecord.recording { border-color: #cc3333; color: #cc3333; }
+
+  #recCount {
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    min-width: 60px;
+  }
+
+  #status {
+    font-size: 12px;
+    color: var(--muted);
+    padding: 4px 10px;
+    border-radius: 0;
+    border: 1px solid var(--border);
+  }
+  #status.ok  { color: #33aa44; border-color: #33aa44; }
+  #status.err { color: #cc3333; border-color: #cc3333; }
+
+  .chart-wrap {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    padding: 12px 16px 8px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .legend-item span {
+    width: 24px;
+    height: 2px;
+    display: inline-block;
+  }
+
+  canvas { width: 100% !important; flex: 1; min-height: 300px; }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    padding: 10px 14px;
+  }
+  .metric-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .metric-value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  footer {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  @media (max-width: 600px) {
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>IMU Acceleration / ICM-42670-P</h1>
+  <div class="controls">
+    <label for="baud">Baud</label>
+    <input type="number" id="baud" value="115200" min="9600" step="9600">
+    <button id="btnConnect">Connect</button>
+    <button id="btnRecord" disabled>Record</button>
+    <span id="recCount"></span>
+    <span id="status">disconnected</span>
+  </div>
+</header>
+
+<div class="metrics">
+  <div class="metric">
+    <div class="metric-label">Ax (m/s2)</div>
+    <div class="metric-value" id="mv-ax" style="color:var(--ax)">--</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Ay (m/s2)</div>
+    <div class="metric-value" id="mv-ay" style="color:var(--ay)">--</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Az (m/s2)</div>
+    <div class="metric-value" id="mv-az" style="color:var(--az)">--</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">|A| (m/s2)</div>
+    <div class="metric-value" id="mv-am" style="color:var(--am)">--</div>
+  </div>
+</div>
+
+<div class="chart-wrap">
+  <div class="legend">
+    <div class="legend-item"><span style="background:var(--ax)"></span>Ax</div>
+    <div class="legend-item"><span style="background:var(--ay)"></span>Ay</div>
+    <div class="legend-item"><span style="background:var(--az)"></span>Az</div>
+    <div class="legend-item"><span style="background:var(--am)"></span>|A|</div>
+  </div>
+  <canvas id="chart"></canvas>
+</div>
+
+<footer>
+  Raw accelerometer data, bias-corrected at startup. Z axis has gravity removed. Values in m/s2.
+</footer>
+
+<script>
+/* ================================================================
+   Chart renderer -- plain Canvas, no external dependencies
+   ================================================================ */
+
+const MAX_POINTS = 600;
+const SERIES = ['ax','ay','az','a_mag'];
+const COLORS = {
+  ax:    getComputedStyle(document.documentElement).getPropertyValue('--ax').trim(),
+  ay:    getComputedStyle(document.documentElement).getPropertyValue('--ay').trim(),
+  az:    getComputedStyle(document.documentElement).getPropertyValue('--az').trim(),
+  a_mag: getComputedStyle(document.documentElement).getPropertyValue('--am').trim(),
+};
+
+const canvas = document.getElementById('chart');
+const ctx    = canvas.getContext('2d');
+
+const data = { ts: [], ax: [], ay: [], az: [], a_mag: [] };
+
+function pushPoint(ts, ax, ay, az, a_mag) {
+  data.ts.push(ts);
+  data.ax.push(ax);
+  data.ay.push(ay);
+  data.az.push(az);
+  data.a_mag.push(a_mag);
+  if (data.ts.length > MAX_POINTS) {
+    data.ts.shift(); data.ax.shift(); data.ay.shift();
+    data.az.shift(); data.a_mag.shift();
+  }
+}
+
+function resizeCanvas() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width  = rect.width  * devicePixelRatio;
+  canvas.height = (rect.height - 40) * devicePixelRatio;
+  canvas.style.height = (rect.height - 40) + 'px';
+}
+window.addEventListener('resize', () => { resizeCanvas(); drawChart(); });
+resizeCanvas();
+
+function drawChart() {
+  const W = canvas.width, H = canvas.height;
+  const PAD = { top: 16, right: 16, bottom: 32, left: 52 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top  - PAD.bottom;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, W, H);
+
+  const n = data.ts.length;
+  if (n < 2) {
+    ctx.fillStyle = '#444450';
+    ctx.font = `${14 * devicePixelRatio}px system-ui`;
+    ctx.textAlign = 'center';
+    ctx.fillText('Waiting for data...', W/2, H/2);
+    return;
+  }
+
+  let yMin = Infinity, yMax = -Infinity;
+  for (const k of SERIES) {
+    for (const v of data[k]) {
+      if (v < yMin) yMin = v;
+      if (v > yMax) yMax = v;
+    }
+  }
+  if (yMax === yMin) { yMin -= 0.1; yMax += 0.1; }
+  const yPad = (yMax - yMin) * 0.1;
+  yMin -= yPad; yMax += yPad;
+
+  const xMin = data.ts[0], xMax = data.ts[n - 1];
+  const xRange = xMax - xMin || 1;
+  const yRange = yMax - yMin;
+
+  const toX = t => PAD.left + (t - xMin) / xRange * plotW;
+  const toY = v => PAD.top  + (1 - (v - yMin) / yRange) * plotH;
+
+  ctx.strokeStyle = '#1e1e1e';
+  ctx.lineWidth = 1;
+  const yTicks = 5;
+  for (let i = 0; i <= yTicks; i++) {
+    const v = yMin + (yRange / yTicks) * i;
+    const y = toY(v);
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + plotW, y); ctx.stroke();
+
+    ctx.fillStyle = '#555560';
+    ctx.font = `${10 * devicePixelRatio}px system-ui`;
+    ctx.textAlign = 'right';
+    ctx.fillText(v.toFixed(2), PAD.left - 6, y + 4);
+  }
+
+  ctx.fillStyle = '#555560';
+  ctx.font = `${10 * devicePixelRatio}px system-ui`;
+  ctx.textAlign = 'center';
+  ctx.fillText('time (ms)', PAD.left + plotW / 2, H - 4);
+
+  ctx.save();
+  ctx.translate(12, H / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('m/s2', 0, 0);
+  ctx.restore();
+
+  // Dim lines when recording to indicate chart is live-only
+  for (const k of SERIES) {
+    ctx.strokeStyle = COLORS[k];
+    ctx.lineWidth   = 1.5 * devicePixelRatio;
+    ctx.lineJoin    = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const x = toX(data.ts[i]);
+      const y = toY(data[k][i]);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  // Recording indicator in top-right corner
+  if (recording) {
+    ctx.fillStyle = '#cc3333';
+    ctx.font = `bold ${11 * devicePixelRatio}px system-ui`;
+    ctx.textAlign = 'right';
+    ctx.fillText('REC', W - PAD.right, PAD.top + 2);
+  }
+}
+
+setInterval(drawChart, 50);
+
+/* ================================================================
+   Recording
+   ================================================================ */
+
+let recording = false;
+let recBuffer = [];
+
+const btnRecord  = document.getElementById('btnRecord');
+const recCountEl = document.getElementById('recCount');
+
+btnRecord.addEventListener('click', () => {
+  if (!recording) {
+    recBuffer = [];
+    recording = true;
+    btnRecord.textContent = 'Stop + Save';
+    btnRecord.classList.add('recording');
+    recCountEl.textContent = '0 rows';
+  } else {
+    recording = false;
+    btnRecord.textContent = 'Record';
+    btnRecord.classList.remove('recording');
+    recCountEl.textContent = '';
+    saveRecording();
+  }
+});
+
+function saveRecording() {
+  if (!recBuffer.length) return;
+  const header = 'timestamp_ms,ax,ay,az,a_mag\n';
+  const body   = recBuffer.map(r =>
+    `${r.ts},${r.ax},${r.ay},${r.az},${r.a_mag}`).join('\n');
+  const blob = new Blob([header + body], { type: 'text/csv' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `imu_rec_${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ================================================================
+   Web Serial
+   ================================================================ */
+
+let port = null, reader = null, lineBuffer = '';
+
+const btnConnect = document.getElementById('btnConnect');
+const statusEl   = document.getElementById('status');
+
+function setStatus(msg, cls = '') {
+  statusEl.textContent = msg;
+  statusEl.className   = cls;
+}
+
+function updateMetrics(ax, ay, az, a_mag) {
+  document.getElementById('mv-ax').textContent = ax.toFixed(3);
+  document.getElementById('mv-ay').textContent = ay.toFixed(3);
+  document.getElementById('mv-az').textContent = az.toFixed(3);
+  document.getElementById('mv-am').textContent = a_mag.toFixed(3);
+}
+
+function parseLine(line) {
+  if (line.startsWith('#')) {
+    console.log('[firmware]', line);
+    return;
+  }
+  const parts = line.split(',');
+  if (parts.length !== 5) return;
+  const [ts, ax, ay, az, a_mag] = parts.map(Number);
+  if ([ts, ax, ay, az, a_mag].some(isNaN)) return;
+
+  pushPoint(ts, ax, ay, az, a_mag);
+  updateMetrics(ax, ay, az, a_mag);
+
+  if (recording) {
+    recBuffer.push({ ts, ax, ay, az, a_mag });
+    recCountEl.textContent = recBuffer.length + ' rows';
+  }
+}
+
+async function readLoop() {
+  const decoder = new TextDecoder();
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      lineBuffer += decoder.decode(value, { stream: true });
+      const lines = lineBuffer.split('\n');
+      lineBuffer  = lines.pop();
+      for (const l of lines) parseLine(l.trim());
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') setStatus('read error: ' + e.message, 'err');
+  }
+}
+
+btnConnect.addEventListener('click', async () => {
+  if (port) {
+    if (recording) {
+      recording = false;
+      btnRecord.textContent = 'Record';
+      btnRecord.classList.remove('recording');
+      recCountEl.textContent = '';
+      saveRecording();
+    }
+    try { reader.cancel(); await reader.closed.catch(() => {}); } catch {}
+    try { await port.close(); } catch {}
+    port = reader = null;
+    lineBuffer = '';
+    btnConnect.textContent = 'Connect';
+    btnConnect.classList.remove('connected');
+    btnRecord.disabled = true;
+    setStatus('disconnected');
+    return;
+  }
+
+  if (!('serial' in navigator)) {
+    setStatus('Web Serial not supported -- use Chrome/Edge', 'err');
+    return;
+  }
+
+  try {
+    const baud = parseInt(document.getElementById('baud').value) || 115200;
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: baud });
+
+    reader = port.readable.getReader();
+    setStatus('connected', 'ok');
+    btnConnect.textContent = 'Disconnect';
+    btnConnect.classList.add('connected');
+    btnRecord.disabled = false;
+
+    readLoop();
+  } catch (e) {
+    setStatus('connect failed: ' + e.message, 'err');
+    port = null;
+  }
+});
+</script>
+</body>
+</html>
