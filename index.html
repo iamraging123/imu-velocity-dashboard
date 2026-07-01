@@ -127,7 +127,7 @@
 
   .metrics {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 8px;
   }
   .metric {
@@ -143,6 +143,16 @@
     font-size: 11px;
     color: var(--muted);
     text-align: center;
+  }
+
+  .metric-peak { border-color: #aa7700; }
+  .metric-peak .metric-label { color: #aa7700; }
+
+  #btnResetPeak {
+    font-size: 10px;
+    padding: 2px 6px;
+    margin-top: 4px;
+    display: inline-block;
   }
 
   @media (max-width: 600px) {
@@ -180,6 +190,11 @@
   <div class="metric">
     <div class="metric-label">|A| (m/s2)</div>
     <div class="metric-value" id="mv-am" style="color:var(--am)">--</div>
+  </div>
+  <div class="metric metric-peak">
+    <div class="metric-label">Peak |A| (m/s2)</div>
+    <div class="metric-value" id="mv-peak" style="color:#aa7700">--</div>
+    <button id="btnResetPeak" disabled>Reset</button>
   </div>
 </div>
 
@@ -296,7 +311,22 @@ function drawChart() {
   ctx.fillText('m/s2', 0, 0);
   ctx.restore();
 
-  // Dim lines when recording to indicate chart is live-only
+  // Peak line
+  if (peakAMag > -Infinity && peakAMag >= yMin && peakAMag <= yMax) {
+    const py = toY(peakAMag);
+    ctx.save();
+    ctx.strokeStyle = '#aa7700';
+    ctx.lineWidth = 1 * devicePixelRatio;
+    ctx.setLineDash([6 * devicePixelRatio, 4 * devicePixelRatio]);
+    ctx.beginPath(); ctx.moveTo(PAD.left, py); ctx.lineTo(PAD.left + plotW, py); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#aa7700';
+    ctx.font = `${10 * devicePixelRatio}px 'Times New Roman', Times, serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText('peak ' + peakAMag.toFixed(2), PAD.left + 4, py - 3);
+    ctx.restore();
+  }
+
   for (const k of SERIES) {
     ctx.strokeStyle = COLORS[k];
     ctx.lineWidth   = 1.5 * devicePixelRatio;
@@ -374,11 +404,25 @@ function setStatus(msg, cls = '') {
   statusEl.className   = cls;
 }
 
+let peakAMag = -Infinity;
+const peakEl       = document.getElementById('mv-peak');
+const btnResetPeak = document.getElementById('btnResetPeak');
+
+btnResetPeak.addEventListener('click', () => {
+  peakAMag = -Infinity;
+  peakEl.textContent = '--';
+});
+
 function updateMetrics(ax, ay, az, a_mag) {
   document.getElementById('mv-ax').textContent = ax.toFixed(3);
   document.getElementById('mv-ay').textContent = ay.toFixed(3);
   document.getElementById('mv-az').textContent = az.toFixed(3);
   document.getElementById('mv-am').textContent = a_mag.toFixed(3);
+  if (a_mag > peakAMag) {
+    peakAMag = a_mag;
+    peakEl.textContent = a_mag.toFixed(3);
+    btnResetPeak.disabled = false;
+  }
 }
 
 function parseLine(line) {
