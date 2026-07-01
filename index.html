@@ -8,21 +8,21 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg:      #000000;
-    --surface: #0d0d0d;
-    --border:  #252525;
-    --text:    #c4c4c8;
-    --muted:   #555560;
-    --ax:      #cc3333;
-    --ay:      #33aa44;
-    --az:      #3366cc;
-    --am:      #e8e8e8;
+    --bg:      #ffffff;
+    --surface: #f5f5f5;
+    --border:  #d0d0d0;
+    --text:    #1a1a1a;
+    --muted:   #888888;
+    --ax:      #cc2222;
+    --ay:      #228833;
+    --az:      #2255bb;
+    --am:      #333333;
   }
 
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Times New Roman', Times, serif;
     font-size: 13px;
     min-height: 100vh;
     display: flex;
@@ -39,7 +39,7 @@
     gap: 8px;
   }
 
-  h1 { font-size: 15px; font-weight: 600; letter-spacing: .03em; color: #e0e0e4; }
+  h1 { font-size: 15px; font-weight: 600; letter-spacing: .03em; color: #111111; }
 
   .controls {
     display: flex;
@@ -70,8 +70,8 @@
     font-size: 13px;
     transition: background .15s;
   }
-  button:hover { background: #1a1a1a; }
-  button.connected { border-color: #33aa44; color: #33aa44; }
+  button:hover { background: #e8e8e8; }
+  button.connected { border-color: #228833; color: #228833; }
   button:disabled { opacity: .35; cursor: default; }
 
   #btnRecord.recording { border-color: #cc3333; color: #cc3333; }
@@ -90,8 +90,8 @@
     border-radius: 0;
     border: 1px solid var(--border);
   }
-  #status.ok  { color: #33aa44; border-color: #33aa44; }
-  #status.err { color: #cc3333; border-color: #cc3333; }
+  #status.ok  { color: #228833; border-color: #228833; }
+  #status.err { color: #cc2222; border-color: #cc2222; }
 
   .chart-wrap {
     flex: 1;
@@ -241,13 +241,13 @@ function drawChart() {
   const plotH = H - PAD.top  - PAD.bottom;
 
   ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#000000';
+  ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, W, H);
 
   const n = data.ts.length;
   if (n < 2) {
-    ctx.fillStyle = '#444450';
-    ctx.font = `${14 * devicePixelRatio}px system-ui`;
+    ctx.fillStyle = '#aaaaaa';
+    ctx.font = `${14 * devicePixelRatio}px 'Times New Roman', Times, serif`;
     ctx.textAlign = 'center';
     ctx.fillText('Waiting for data...', W/2, H/2);
     return;
@@ -271,7 +271,7 @@ function drawChart() {
   const toX = t => PAD.left + (t - xMin) / xRange * plotW;
   const toY = v => PAD.top  + (1 - (v - yMin) / yRange) * plotH;
 
-  ctx.strokeStyle = '#1e1e1e';
+  ctx.strokeStyle = '#dddddd';
   ctx.lineWidth = 1;
   const yTicks = 5;
   for (let i = 0; i <= yTicks; i++) {
@@ -279,14 +279,14 @@ function drawChart() {
     const y = toY(v);
     ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + plotW, y); ctx.stroke();
 
-    ctx.fillStyle = '#555560';
-    ctx.font = `${10 * devicePixelRatio}px system-ui`;
+    ctx.fillStyle = '#888888';
+    ctx.font = `${10 * devicePixelRatio}px 'Times New Roman', Times, serif`;
     ctx.textAlign = 'right';
     ctx.fillText(v.toFixed(2), PAD.left - 6, y + 4);
   }
 
-  ctx.fillStyle = '#555560';
-  ctx.font = `${10 * devicePixelRatio}px system-ui`;
+  ctx.fillStyle = '#888888';
+  ctx.font = `${10 * devicePixelRatio}px 'Times New Roman', Times, serif`;
   ctx.textAlign = 'center';
   ctx.fillText('time (ms)', PAD.left + plotW / 2, H - 4);
 
