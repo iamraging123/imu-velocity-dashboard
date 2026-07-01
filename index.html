@@ -168,6 +168,8 @@
     <label for="baud">Baud</label>
     <input type="number" id="baud" value="115200" min="9600" step="9600">
     <button id="btnConnect">Connect</button>
+    <label for="testName">Test</label>
+    <input type="text" id="testName" placeholder="Test 1" maxlength="40" disabled style="width:120px">
     <button id="btnRecord" disabled>Record</button>
     <span id="recCount"></span>
     <span id="status">disconnected</span>
@@ -343,9 +345,9 @@ function drawChart() {
   // Recording indicator in top-right corner
   if (recording) {
     ctx.fillStyle = '#cc3333';
-    ctx.font = `bold ${11 * devicePixelRatio}px system-ui`;
+    ctx.font = `bold ${11 * devicePixelRatio}px 'Times New Roman', Times, serif`;
     ctx.textAlign = 'right';
-    ctx.fillText('REC', W - PAD.right, PAD.top + 2);
+    ctx.fillText('REC  ' + activeTest, W - PAD.right, PAD.top + 12);
   }
 }
 
@@ -355,14 +357,22 @@ setInterval(drawChart, 50);
    Recording
    ================================================================ */
 
-let recording = false;
-let recBuffer = [];
+let recording    = false;
+let recBuffer    = [];
+let activeTest   = '';
+let testCounter  = 1;
 
-const btnRecord  = document.getElementById('btnRecord');
-const recCountEl = document.getElementById('recCount');
+const btnRecord   = document.getElementById('btnRecord');
+const recCountEl  = document.getElementById('recCount');
+const testNameEl  = document.getElementById('testName');
 
 btnRecord.addEventListener('click', () => {
   if (!recording) {
+    // Capture name; fall back to auto-incrementing label
+    activeTest = testNameEl.value.trim() || `Test ${testCounter}`;
+    testNameEl.value = activeTest;
+    testNameEl.disabled = true;
+
     recBuffer = [];
     recording = true;
     btnRecord.textContent = 'Stop + Save';
@@ -372,20 +382,29 @@ btnRecord.addEventListener('click', () => {
     recording = false;
     btnRecord.textContent = 'Record';
     btnRecord.classList.remove('recording');
+    testNameEl.disabled = false;
     recCountEl.textContent = '';
-    saveRecording();
+
+    saveRecording(activeTest);
+
+    // Advance counter and pre-fill next name
+    testCounter++;
+    testNameEl.value = `Test ${testCounter}`;
+    activeTest = '';
   }
 });
 
-function saveRecording() {
+function saveRecording(name) {
   if (!recBuffer.length) return;
+  const safe   = name.replace(/[^a-zA-Z0-9_\-]/g, '_');
+  const meta   = `# test: ${name}\n# saved: ${new Date().toISOString()}\n`;
   const header = 'timestamp_ms,ax,ay,az,a_mag\n';
   const body   = recBuffer.map(r =>
     `${r.ts},${r.ax},${r.ay},${r.az},${r.a_mag}`).join('\n');
-  const blob = new Blob([header + body], { type: 'text/csv' });
+  const blob = new Blob([meta + header + body], { type: 'text/csv' });
   const a    = document.createElement('a');
   a.href     = URL.createObjectURL(blob);
-  a.download = `imu_rec_${Date.now()}.csv`;
+  a.download = `${safe}_${Date.now()}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -467,7 +486,8 @@ btnConnect.addEventListener('click', async () => {
       btnRecord.textContent = 'Record';
       btnRecord.classList.remove('recording');
       recCountEl.textContent = '';
-      saveRecording();
+      saveRecording(activeTest);
+      activeTest = '';
     }
     try { reader.cancel(); await reader.closed.catch(() => {}); } catch {}
     try { await port.close(); } catch {}
@@ -476,6 +496,9 @@ btnConnect.addEventListener('click', async () => {
     btnConnect.textContent = 'Connect';
     btnConnect.classList.remove('connected');
     btnRecord.disabled = true;
+    testNameEl.disabled = true;
+    testNameEl.value = '';
+    testCounter = 1;
     setStatus('disconnected');
     return;
   }
@@ -495,6 +518,8 @@ btnConnect.addEventListener('click', async () => {
     btnConnect.textContent = 'Disconnect';
     btnConnect.classList.add('connected');
     btnRecord.disabled = false;
+    testNameEl.disabled = false;
+    testNameEl.value = `Test ${testCounter}`;
 
     readLoop();
   } catch (e) {
