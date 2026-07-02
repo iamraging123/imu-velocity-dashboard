@@ -155,6 +155,50 @@
     display: inline-block;
   }
 
+  /* Trim modal */
+  #trimModal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  #trimModal.open { display: flex; }
+  #trimBox {
+    background: #fff;
+    border: 1px solid var(--border);
+    padding: 16px;
+    width: 640px;
+    max-width: 94vw;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  #trimTitle { font-size: 14px; font-weight: 600; }
+  #trimCanvas {
+    width: 100%;
+    height: 140px;
+    border: 1px solid var(--border);
+    display: block;
+  }
+  .trim-sliders {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 6px 10px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .trim-sliders input[type="range"] { width: 100%; accent-color: var(--text); }
+  #trimInfo {
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .trim-actions { display: flex; gap: 8px; }
+
   @media (max-width: 600px) {
     .metrics { grid-template-columns: repeat(2, 1fr); }
   }
@@ -210,6 +254,23 @@
   <canvas id="chart"></canvas>
 </div>
 
+<div id="trimModal">
+  <div id="trimBox">
+    <div id="trimTitle">Trim Recording</div>
+    <canvas id="trimCanvas"></canvas>
+    <div class="trim-sliders">
+      <label>Start</label>
+      <input type="range" id="trimStartSlider" min="0" max="0" value="0">
+      <label>End</label>
+      <input type="range" id="trimEndSlider" min="0" max="0" value="0">
+    </div>
+    <span id="trimInfo"></span>
+    <div class="trim-actions">
+      <button id="btnTrimSave">Save</button>
+      <button id="btnTrimDiscard">Discard</button>
+    </div>
+  </div>
+</div>
 
 <script>
 /* ================================================================
@@ -385,21 +446,22 @@ btnRecord.addEventListener('click', () => {
     testNameEl.disabled = false;
     recCountEl.textContent = '';
 
-    saveRecording(activeTest);
-
-    // Advance counter and pre-fill next name
-    testCounter++;
-    testNameEl.value = `Test ${testCounter}`;
-    activeTest = '';
+    if (recBuffer.length === 0) {
+      testCounter++;
+      testNameEl.value = `Test ${testCounter}`;
+      activeTest = '';
+    } else {
+      openTrimModal(activeTest);
+    }
   }
 });
 
-function saveRecording(name) {
-  if (!recBuffer.length) return;
+function saveRecording(name, rows) {
+  if (!rows || !rows.length) return;
   const safe   = name.replace(/[^a-zA-Z0-9_\-]/g, '_');
   const meta   = `# test: ${name}\n# saved: ${new Date().toISOString()}\n`;
   const header = 'timestamp_ms,ax,ay,az,a_mag\n';
-  const body   = recBuffer.map(r =>
+  const body   = rows.map(r =>
     `${r.ts},${r.ax},${r.ay},${r.az},${r.a_mag}`).join('\n');
   const blob = new Blob([meta + header + body], { type: 'text/csv' });
   const a    = document.createElement('a');
@@ -407,6 +469,128 @@ function saveRecording(name) {
   a.download = `${safe}_${Date.now()}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+/* ================================================================
+   Trim modal
+   ================================================================ */
+
+let trimBuffer = [];
+let trimName   = '';
+let trimStart  = 0;
+let trimEnd    = 0;
+
+const trimModal       = document.getElementById('trimModal');
+const trimStartSlider = document.getElementById('trimStartSlider');
+const trimEndSlider   = document.getElementById('trimEndSlider');
+const trimInfoEl      = document.getElementById('trimInfo');
+const trimCanvas      = document.getElementById('trimCanvas');
+
+function openTrimModal(name) {
+  trimBuffer = recBuffer.slice();
+  trimName   = name;
+  trimStart  = 0;
+  trimEnd    = trimBuffer.length - 1;
+
+  trimStartSlider.min = 0; trimStartSlider.max = trimBuffer.length - 1; trimStartSlider.value = 0;
+  trimEndSlider.min   = 0; trimEndSlider.max   = trimBuffer.length - 1; trimEndSlider.value   = trimBuffer.length - 1;
+
+  document.getElementById('trimTitle').textContent = 'Trim: ' + name;
+  trimModal.classList.add('open');
+
+  requestAnimationFrame(() => {
+    trimCanvas.width  = trimCanvas.offsetWidth  * devicePixelRatio;
+    trimCanvas.height = trimCanvas.offsetHeight * devicePixelRatio;
+    updateTrimInfo();
+    drawTrimChart();
+  });
+}
+
+function drawTrimChart() {
+  const tctx = trimCanvas.getContext('2d');
+  const W = trimCanvas.width, H = trimCanvas.height;
+  const PAD = { top: 10, right: 10, bottom: 10, left: 10 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top  - PAD.bottom;
+  const n = trimBuffer.length;
+
+  tctx.clearRect(0, 0, W, H);
+  tctx.fillStyle = '#ffffff';
+  tctx.fillRect(0, 0, W, H);
+  if (n < 2) return;
+
+  let yMin = Infinity, yMax = -Infinity;
+  for (const r of trimBuffer) {
+    for (const k of SERIES) {
+      if (r[k] < yMin) yMin = r[k];
+      if (r[k] > yMax) yMax = r[k];
+    }
+  }
+  if (yMax === yMin) { yMin -= 0.1; yMax += 0.1; }
+  const yPad = (yMax - yMin) * 0.08;
+  yMin -= yPad; yMax += yPad;
+  const yRange = yMax - yMin;
+
+  const toX = i => PAD.left + (i / (n - 1)) * plotW;
+  const toY = v => PAD.top  + (1 - (v - yMin) / yRange) * plotH;
+
+  for (const k of SERIES) {
+    tctx.strokeStyle = COLORS[k];
+    tctx.lineWidth   = 1.5 * devicePixelRatio;
+    tctx.lineJoin    = 'round';
+    tctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const x = toX(i), y = toY(trimBuffer[i][k]);
+      i === 0 ? tctx.moveTo(x, y) : tctx.lineTo(x, y);
+    }
+    tctx.stroke();
+  }
+
+  const xS = toX(trimStart), xE = toX(trimEnd);
+  tctx.fillStyle = 'rgba(200,200,200,0.6)';
+  if (trimStart > 0)     tctx.fillRect(PAD.left, PAD.top, xS - PAD.left, plotH);
+  if (trimEnd < n - 1)   tctx.fillRect(xE, PAD.top, PAD.left + plotW - xE, plotH);
+
+  tctx.lineWidth = 2 * devicePixelRatio;
+  tctx.setLineDash([4 * devicePixelRatio, 3 * devicePixelRatio]);
+  tctx.strokeStyle = '#228833';
+  tctx.beginPath(); tctx.moveTo(xS, PAD.top); tctx.lineTo(xS, PAD.top + plotH); tctx.stroke();
+  tctx.strokeStyle = '#cc2222';
+  tctx.beginPath(); tctx.moveTo(xE, PAD.top); tctx.lineTo(xE, PAD.top + plotH); tctx.stroke();
+  tctx.setLineDash([]);
+}
+
+function updateTrimInfo() {
+  const rows = trimEnd - trimStart + 1;
+  const ms   = trimBuffer.length > 1
+    ? trimBuffer[trimEnd].ts - trimBuffer[trimStart].ts
+    : 0;
+  trimInfoEl.textContent = `${rows} rows  (${(ms / 1000).toFixed(2)} s)`;
+}
+
+trimStartSlider.addEventListener('input', () => {
+  trimStart = parseInt(trimStartSlider.value);
+  if (trimStart > trimEnd) { trimEnd = trimStart; trimEndSlider.value = trimEnd; }
+  updateTrimInfo(); drawTrimChart();
+});
+trimEndSlider.addEventListener('input', () => {
+  trimEnd = parseInt(trimEndSlider.value);
+  if (trimEnd < trimStart) { trimStart = trimEnd; trimStartSlider.value = trimStart; }
+  updateTrimInfo(); drawTrimChart();
+});
+
+document.getElementById('btnTrimSave').addEventListener('click', () => {
+  saveRecording(trimName, trimBuffer.slice(trimStart, trimEnd + 1));
+  closeTrimModal();
+});
+document.getElementById('btnTrimDiscard').addEventListener('click', closeTrimModal);
+
+function closeTrimModal() {
+  trimModal.classList.remove('open');
+  testCounter++;
+  testNameEl.value = `Test ${testCounter}`;
+  activeTest = '';
+  trimBuffer = [];
 }
 
 /* ================================================================
@@ -486,7 +670,13 @@ btnConnect.addEventListener('click', async () => {
       btnRecord.textContent = 'Record';
       btnRecord.classList.remove('recording');
       recCountEl.textContent = '';
-      saveRecording(activeTest);
+      saveRecording(activeTest, recBuffer.slice());
+      activeTest = '';
+    }
+    if (trimModal.classList.contains('open')) {
+      saveRecording(trimName, trimBuffer.slice(trimStart, trimEnd + 1));
+      trimModal.classList.remove('open');
+      trimBuffer = [];
       activeTest = '';
     }
     try { reader.cancel(); await reader.closed.catch(() => {}); } catch {}
